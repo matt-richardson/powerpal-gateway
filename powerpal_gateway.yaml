@@ -1,0 +1,62 @@
+substitutions:
+  device_name: powerpal-gateway
+  friendly_name: Powerpal Gateway
+
+esphome:
+  name: ${device_name}
+  platform: ESP32
+  board: m5stack-core-esp32
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+logger:
+
+api:
+  encryption:
+    key: !secret esphome_enryption_key
+
+ota:
+  password: !secret esphome_secret
+
+external_components:
+  - source:
+     type: git
+     url: https://github.com/muneeb1990/esphome
+     ref: powerpal_ble
+    components: [ powerpal_ble ]
+
+esp32_ble_tracker:
+
+ble_client:
+  - mac_address: !secret powerpal_mac_address
+    id: powerpal
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+
+http_request:
+  id: powerpal_cloud_uploader
+
+sensor:
+  - platform: powerpal_ble
+    ble_client_id: powerpal
+    power:
+      name: "Powerpal Power"
+      accuracy_decimals: 0
+    energy:
+      name: "Powerpal Total Energy"
+      accuracy_decimals: 3
+    daily_energy:
+      name: "Powerpal Daily Energy"
+      accuracy_decimals: 0
+    battery_level:
+      name: "Powerpal Battery"
+    pairing_code: !secret powerpal_pairing_code
+    notification_interval: 1 # get updates every 1 minute
+    pulses_per_kwh: 3200
+    time_id: homeassistant_time
+    cost_per_kwh: 0.23 #dollars per kWh
+

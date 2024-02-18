@@ -1,0 +1,15 @@
+substitutions:
+  device_name: powerpal-gateway
+  friendly_name: Powerpal Gateway
+
+# Example configuration entry for finding
+# Service UUIDs and iBeacon UUIDs and identifiers
+esp32_ble_tracker:
+
+logger:
+  level: VERY_VERBOSE
+
+esphome:
+  name: ${device_name}
+  platform: ESP32
+  board: m5stack-core-esp32
