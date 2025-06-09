@@ -99,7 +99,7 @@ sensor:
     notification_interval: 1 # get updates every 1 minute
     pulses_per_kwh: 3200
     time_id: homeassistant_time
-    cost_per_kwh: 0.23 #dollars per kWh
+    cost_per_kwh: 0.29 #dollars per kWh
 
 light:
   - platform: fastled_clockless
