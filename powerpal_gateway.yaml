@@ -21,7 +21,8 @@ api:
     key: !secret esphome_enryption_key
 
 ota:
-  password: !secret esphome_secret
+  - platform: esphome
+    password: !secret esphome_ota_password
 
 external_components:
   - source:
