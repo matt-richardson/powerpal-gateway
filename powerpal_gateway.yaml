@@ -18,7 +18,7 @@ logger:
 
 api:
   encryption:
-    key: !secret esphome_enryption_key
+    key: !secret esphome_encryption_key
 
 ota:
   - platform: esphome
