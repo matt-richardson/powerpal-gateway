@@ -31,7 +31,7 @@ external_components:
      ref: powerpal_ble
     components: [ powerpal_ble ]
 
-esp32_ble_tracker:
+# esp32_ble_tracker:
 
 ble_client:
   - mac_address: !secret powerpal_mac_address
@@ -41,8 +41,8 @@ time:
   - platform: homeassistant
     id: homeassistant_time
 
-http_request:
-  id: powerpal_cloud_uploader
+# http_request:
+#   id: powerpal_cloud_uploader
 
 sensor:
   - platform: powerpal_ble
