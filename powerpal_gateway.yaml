@@ -41,6 +41,8 @@ esphome:
         - delay: 60s
         - light.turn_off:
             id: "built_in_led"
+  platformio_options:
+    upload_speed: 115200
 
 esp32:
   board: m5stack-core-esp32
@@ -55,7 +57,7 @@ logger:
 
 api:
   encryption:
-    key: !secret esphome_encryption_key
+    key: !secret powerpal_gateway_esphome_encryption_key
 
 ota:
   - platform: esphome

@@ -1,0 +1,232 @@
+esphome:
+  name: bluetooth-proxy
+  friendly_name: Bluetooth Proxy
+  #min_version: 2025.5.0
+  name_add_mac_suffix: false
+  platformio_options:
+    upload_speed: 115200
+  on_boot:
+    then:
+      - lambda: |-
+          id(ble_device_count) = 0;
+          id(device_count_actual) = 0;
+
+esp32:
+  board: m5stick-c
+  framework:
+    type: arduino
+
+globals:
+  - id: ble_device_count
+    type: int
+    restore_value: no
+    initial_value: '0'
+  - id: device_addresses
+    type: std::string[100]
+    restore_value: no
+  - id: device_count_actual
+    type: int
+    restore_value: no
+    initial_value: '0'
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+  manual_ip:
+    static_ip: 192.168.40.85
+    gateway: 192.168.40.1
+    subnet: 255.255.255.0
+
+api:
+  encryption:
+    key: !secret bluetooth_proxy_esphome_encryption_key
+
+logger:
+
+ota:
+  - platform: esphome
+    password: !secret esphome_ota_password
+
+external_components:
+  - source: github://martydingo/esphome-axp192
+    components: [axp192]
+
+esp32_ble_tracker:
+  scan_parameters:
+    # We currently use the defaults to ensure Bluetooth
+    # can co-exist with WiFi In the future we may be able to
+    # enable the built-in coexistence logic in ESP-IDF
+    active: true
+  on_ble_advertise:
+    then:
+      - lambda: |-
+          // Get MAC address as string
+          std::string mac_addr = x.address_str();
+          
+          // Check if we've seen this device before (linear search through fixed array)
+          bool found = false;
+          for (int i = 0; i < id(device_count_actual); i++) {
+            if (id(device_addresses)[i] == mac_addr) {
+              found = true;
+              break;
+            }
+          }
+          
+          // Add new device if not found and we have space
+          if (!found && id(device_count_actual) < 100) {
+            id(device_addresses)[id(device_count_actual)] = mac_addr;
+            id(device_count_actual)++;
+            id(ble_device_count) = id(device_count_actual);
+          }
+
+bluetooth_proxy:
+  active: true
+
+# Reset device count every 5 minutes
+interval:
+  - interval: 300s
+    then:
+      - lambda: |-
+          // Clear the device list every 5 minutes to show "current" devices
+          id(device_count_actual) = 0;
+          id(ble_device_count) = 0;
+          for (int i = 0; i < 100; i++) {
+            id(device_addresses)[i] = "";
+          }
+
+i2c:
+   - id: bus_a
+     sda: GPIO21
+     scl: GPIO22
+     scan: True
+
+# AXP192 power management - must be present to initialize TFT power on
+sensor:
+  - platform: axp192
+    address: 0x34
+    i2c_id: bus_a
+    update_interval: 30s
+    model: M5STICKC
+    battery_level:
+      name: "Battery Level"
+      id: "m5stick_batterylevel"
+
+  - platform: template
+    name: "Proxied Devices"
+    id: proxied_devices
+    lambda: |-
+      if (isnan(id(ble_device_count))) {
+        return 0;
+      }
+      return (int)id(ble_device_count);
+    update_interval: 10s
+    accuracy_decimals: 0
+
+  - platform: uptime
+    name: "Uptime"
+    id: uptime_sensor
+
+  - platform: debug
+    free:
+      name: "Heap Free"
+    # fragmentation:
+    #   name: "Heap Fragmentation"
+    block:
+      name: "Heap Max Block"
+    # loop_time:
+    #   name: "Loop Time"
+    # psram:
+    #   name: "Free PSRAM"
+    # cpu_frequency:
+    #   name: "CPU Frequency"
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "IP Address"
+      id: wifi_ip
+      internal: true
+  - platform: debug
+    device:
+      name: "Device Info"
+    reset_reason:
+      name: "Reset Reason"
+
+binary_sensor:
+  - platform: status
+    name: "Home Assistant Connection"
+    id: ha_connected
+    internal: true
+
+# internal LED
+light:
+  - platform: monochromatic
+    output:  builtin_led
+    name: Led
+    id: led1
+
+output:
+  - platform: ledc
+    pin: 10
+    inverted: true
+    id: builtin_led
+
+spi:
+  clk_pin: GPIO13
+  mosi_pin: GPIO15
+
+font:
+  - file: "gfonts://Roboto"
+    id: myfont
+    size: 14
+
+# builtin 80x160 TFT
+color:
+  - id: white
+    red: 50%
+    green: 50%
+    blue: 50%
+
+display:
+  - platform: ili9xxx
+    model: ST7735
+    cs_pin: GPIO5
+    dc_pin: GPIO23
+    reset_pin: GPIO18
+    invert_colors: true
+    show_test_card: false
+    color_order: bgr
+    rotation: 270
+    lambda: |-
+      it.print(10, 25, id(myfont), id(white), TextAlign::TOP_LEFT, "Bluetooth Proxy");
+      // Print IP address
+      if (id(wifi_ip).state == "0.0.0.0" || id(wifi_ip).state.empty()) {
+        it.print(10, 40, id(myfont), id(white), TextAlign::TOP_LEFT, "IP: not connected");
+      } else {
+        it.printf(10, 40, id(myfont), id(white), TextAlign::TOP_LEFT, "IP: %s", id(wifi_ip).state.c_str());
+      }
+      // Print Home Assistant connection status
+      if (id(ha_connected).state) {
+        it.print(10, 55, id(myfont), id(white), TextAlign::TOP_LEFT, "HA: Connected");
+      } else {
+        it.print(10, 55, id(myfont), id(white), TextAlign::TOP_LEFT, "HA: Disconnected");
+      }
+      // Print Bluetooth device count
+      it.printf(10, 70, id(myfont), id(white), TextAlign::TOP_LEFT, "Discovered: %.0f", id(proxied_devices).state);
+      // Print uptime in hours and minutes
+      if (isnan(id(uptime_sensor).state) || id(uptime_sensor).state < 0) {
+        it.print(10, 85, id(myfont), id(white), TextAlign::TOP_LEFT, "Up: 0h 0m");
+      } else {
+        int uptime_hours = (int)(id(uptime_sensor).state / 3600);
+        int uptime_minutes = (int)((id(uptime_sensor).state - (uptime_hours * 3600)) / 60);
+        it.printf(10, 85, id(myfont), id(white), TextAlign::TOP_LEFT, "Up: %dh %dm", uptime_hours, uptime_minutes);
+      }
+
+time:
+  - platform: homeassistant
+    id: homeassistant_time
+  - platform: sntp
+    id: sntp_time
+
+debug:
+  update_interval: 30s
